@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>لعبة النجوم</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+  html, body { margin: 0; height: 100%; overflow: hidden; font-family: system-ui, sans-serif;
+    background: var(--tg-theme-bg-color, #101820); color: var(--tg-theme-text-color, #fff); }
+  body { display: flex; flex-direction: column; }
+  #top { display: flex; justify-content: space-between; padding: 12px 16px; font-size: 16px; }
+  #info { text-align: center; font-size: 13px; opacity: .8; padding: 0 16px 6px; }
+  #field { position: relative; flex: 1; margin: 6px 12px; border-radius: 16px; overflow: hidden;
+    background: var(--tg-theme-secondary-bg-color, #1d2733); }
+  .star { position: absolute; font-size: 46px; line-height: 1; }
+  #bar { position: absolute; bottom: 0; right: 0; height: 6px; width: 100%;
+    background: var(--tg-theme-button-color, #2ea6ff); }
+  #msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    text-align: center; padding: 20px; font-size: 18px; line-height: 1.8; }
+  #btn { display: block; width: calc(100% - 24px); margin: 8px 12px 14px; padding: 16px; border: 0;
+    border-radius: 14px; font-size: 18px; font-weight: 600;
+    background: var(--tg-theme-button-color, #2ea6ff); color: var(--tg-theme-button-text-color, #fff); }
+  #btn:disabled { opacity: .5; }
+</style>
+</head>
+<body>
+<div id="top"><div>💰 <b id="bal">-</b></div><div>⏱ <b id="time">20</b></div><div>⭐ <b id="score">0</b></div></div>
+<div id="info"></div>
+<div id="field"><div id="msg"></div><div id="bar"></div></div>
+<button id="btn">ابدأ اللعب</button>
+<script>
+var tg = window.Telegram && window.Telegram.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+var q = new URLSearchParams(location.search);
+var bal = q.get('b');
+var maxR = parseInt(q.get('m') || '3');
+var per = parseInt(q.get('d') || '5');
+var left = q.get('l');
+var DUR = 20, score = 0, running = false, tmr = null, spawn = null;
+function $(id) { return document.getElementById(id); }
+function say(t) { $('msg').innerHTML = t; $('msg').style.display = t ? 'flex' : 'none'; }
+
+$('bal').textContent = bal || '-';
+$('info').textContent = 'كل ' + per + ' نجوم = نقطة (أقصى ' + maxR + ' نقاط)' +
+  (left !== null ? ' • محاولاتك اليوم: ' + left : '');
+
+if (left !== null && parseInt(left) <= 0) {
+  say('خلصت محاولاتك لليوم 🎉<br>ارجع بكرة!');
+  $('btn').disabled = true;
+} else {
+  say('اضغط ابدأ وجمّع أكبر عدد من النجوم ⭐<br>خلال ' + DUR + ' ثانية');
+}
+
+function spawnStar() {
+  if (!running) return;
+  var f = $('field'), s = document.createElement('div');
+  s.className = 'star'; s.textContent = '⭐';
+  s.style.left = Math.random() * (f.clientWidth - 56) + 'px';
+  s.style.top = Math.random() * (f.clientHeight - 70) + 'px';
+  var done = false;
+  function hit(e) {
+    e.preventDefault();
+    if (done || !running) return;
+    done = true; score++;
+    $('score').textContent = score;
+    s.remove();
+    try { tg.HapticFeedback.impactOccurred('light'); } catch (x) {}
+  }
+  s.addEventListener('touchstart', hit, { passive: false });
+  s.addEventListener('mousedown', hit);
+  f.appendChild(s);
+  setTimeout(function () { s.remove(); }, 1100);
+}
+
+function start() {
+  score = 0; running = true;
+  $('score').textContent = 0; $('time').textContent = DUR;
+  say(''); $('btn').style.display = 'none';
+  var t0 = Date.now();
+  tmr = setInterval(function () {
+    var used = Date.now() - t0;
+    $('time').textContent = Math.max(0, DUR - Math.floor(used / 1000));
+    $('bar').style.width = Math.max(0, 100 - 100 * used / (DUR * 1000)) + '%';
+    if (used >= DUR * 1000) finish();
+  }, 100);
+  spawnStar();
+  spawn = setInterval(spawnStar, 650);
+}
+
+function finish() {
+  running = false; clearInterval(tmr); clearInterval(spawn);
+  var st = document.querySelectorAll('.star');
+  for (var i = 0; i < st.length; i++) st[i].remove();
+  var reward = Math.min(Math.floor(score / per), maxR);
+  say('⭐ جمعت ' + score + ' نجمة<br>🎁 مكافأتك: ' + reward + ' نقطة');
+  var b = $('btn');
+  b.style.display = 'block'; b.disabled = false;
+  b.textContent = 'استلام المكافأة';
+  b.onclick = send;
+}
+
+function send() {
+  $('btn').disabled = true;
+  if (tg) tg.sendData(JSON.stringify({ s: score }));
+  else say('افتح اللعبة من داخل البوت');
+}
+
+$('btn').onclick = start;
+</script>
+</body>
+</html>
